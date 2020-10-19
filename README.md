@@ -55,8 +55,7 @@ This is a ongoing research project with many parts currently **under constructio
 - sampling inference
     - Markov chain Monte Carlo
         - Metropolis-Hastings
-        - *Hamiltonian*
-        - *no-U-turn*
+        - *Hamiltonian + no-U-turn*
     - simulated annealing
 - *variational inference*
 
@@ -95,15 +94,15 @@ Here we apply sampling inference via techniques like Markov chain Monte Carlo. A
 # ... what is the prior distribution p(y_test)
 y_prior = gpr.prior_predictive(X, n_samples=6)
 # ... what is the posterior distribution p(y_test|y_train)
-y_posterior = gpr.posterior_predictive(X_test, n_samples=4)
+y_posterior = gpr.posterior_predictive(X, n_samples=4)
 ```
 ![alt text](./examples/prior-predictive.png)
 ![alt text](./examples/posterior-predictive.png)
 
-We can also sample from the posterior distribution of hyperparameters, which characterizes its uncertainty beyond a single point estimate such as MLE or MAP.
+We can also sample from the posterior distribution of a hyperparameter, which characterizes it uncertainty beyond a single point estimate such as MLE or MAP.
 ```python
 # invoke MCMC sampler to sample hyper values from its posterior distribution
-hyper_posterior = gpr.hyper_posterior(n_samples=10000, n_burns=5000)
+hyper_posterior = gpr.hyper_posterior(n_samples=10000)
 ```
 ![alt text](./examples/posterior-a2.png)
 
