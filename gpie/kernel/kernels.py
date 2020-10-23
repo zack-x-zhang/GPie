@@ -644,7 +644,7 @@ class RationalQuadraticKernel(StationaryMixin, Kernel):
     m (mixture coefficient): shape parameter of gamma distribution over
                              RBF's inverse squared length scales l**2 (rate
                              parameter is set to be proportioal to l**2);
-                             converges to RBF kernel as m goes to infinity
+                             tends to RBF kernel as m -> inf
     l (average length scale): positive float
     """
 
@@ -900,10 +900,9 @@ class PeriodicKernel(StationaryMixin, Kernel):
     """
     periodic kernel (RBF kernel in u-space)
 
-    k(x,z) = exp( -2 * || sin( π/p * (x-z)) / l ||**2 )
+    k(x,z) = exp( -2 * || sin( π/p * (x-z) ) / l ||**2 )
 
     p (period): positive float (isotropic) or positive array (anisotropic)
-                where periods define contours' shape and scale
     l (length scale): positive float (isotropic) or positive array (anisotropic)
     """
 
@@ -963,15 +962,15 @@ class PeriodicKernel(StationaryMixin, Kernel):
 
     def _obj(self, X: ndarray) -> Callable:
         if self.isotropic:
-            # pairwise difference
-            D = X[:, newaxis, :] - X[newaxis, :, :]
             def fun(log_params)-> Tuple[ndarray, ndarray]:
                 assert is_array(log_params, 1, np.number)
                 # period and length scale
                 p = exp(log_params[0])
                 l = exp(log_params[1])
                 # map to u-space
-                D_p = D * (pi/p)
+                X_p = X * (pi / p)
+                # pairwise perioded difference squared (feature being 3rd axis)
+                D_p = X_p[:, newaxis, :] - X_p[newaxis, :, :]
                 sinDp = np.sin(D_p)
                 # pairwise scaled l2 distance squared
                 R2_l2 = ((2./l * sinDp) ** 2).sum(axis=2)
@@ -988,15 +987,15 @@ class PeriodicKernel(StationaryMixin, Kernel):
                 raise ValueError( 'number of features must agree with '
                                   'number of periods / length scales.'  )
             dim = self.dim
-            # pairwise difference
-            D = X[:, newaxis, :] - X[newaxis, :, :]
             def fun(log_params)-> Tuple[ndarray, ndarray]:
                 assert is_array(log_params, 1, np.number)
                 # period and length scale
                 p = np.exp(log_params[:dim])
                 l = np.exp(log_params[-dim:])
-                # pairwise perioded difference
-                D_p = D * (pi/p)[newaxis, newaxis, :]
+                # map to u-space
+                X_p = np.einsum('ij,j->ij', X, pi / p)
+                # pairwise perioded difference squared (feature being 3rd axis)
+                D_p = X_p[:, newaxis, :] - X_p[newaxis, :, :]
                 sinDp = np.sin(D_p)
                 sin2Dp4_l2 = np.einsum('ijk,k->ijk', sinDp, 2./l) ** 2
                 # pairwise scaled l2 distance squared
@@ -1032,17 +1031,11 @@ class PeriodicKernel(StationaryMixin, Kernel):
 
 class CosineKernel(StationaryMixin, Kernel):
     """
-    cosine kernel (as l -> inf, periodic(l) -> cosine)
-    k(x,z) = cos(p.T @ (x-z))  # FIXME: add pi
+    cosine kernel (as l -> inf, zero-mean periodic(l) -> cosine)
 
-    spectral mixture kernel = sum of spectral kernels, where
-    spectral kernel = rbf kernel * cosine kernel, i.e.
-    k(x,z) = exp( - 1/2 * || (x-z)/l ||**2 ) * cos(p.T @ (x-z))
-    whose spectral densitiy is Gaussian(p, l)
+    k(x,z) = Π_i cos( 2π/p * (x_i-z_i) )
 
     p (period): positive float (isotropic) or positive array (anisotropic)
-                defines contours' shape and scale
-    l (length scale): positive float (isotropic) or positive array (anisotropic)
     """
 
     def __init__(self, p: float = 1.0, p_bounds: B = (1e-4, 1e+4)):
@@ -1082,36 +1075,48 @@ class CosineKernel(StationaryMixin, Kernel):
 
     def _obj(self, X: ndarray) -> Callable:
         if self.isotropic:
-            R = dist(X, X, metric='euclidean')
+            k = X.shape[1]  # number of features
             def fun(log_params: ndarray) -> Tuple[ndarray, ndarray]:
                 assert is_array(log_params, 1, np.number)
                 # period
                 p = exp(log_params[0])
-                # precompute
-                Rp = R * p
+                # map to u-space
+                X_p = X * (2 * pi / p)
+                # pairwise perioded difference squared (feature being 3rd axis)
+                D_p = X_p[:, newaxis, :] - X_p[newaxis, :, :]
+                cosDp = np.cos(D_p)
+                d_K_d_logp = np.sin(D_p) * D_p
                 # kernel
-                K = np.cos(Rp)
+                K = cosDp.prod(axis=2)
                 # jacobian
-                d_K_d_logp = (-np.sin(Rp) * Rp)[:, :, newaxis]
-                return K, d_K_d_logp
+                masks = np.ones((k, k), dtype=int)
+                masks[np.diag_indices_from(masks)] = 0
+                print(masks)
+                for kk in range(k):
+                    d_K_d_logp[:,:,kk] *= cosDp[:,:,masks[kk]].prod(axis=2)
+                return K, d_K_d_logp.sum(axis=2, keepdims=True)
         else:
             if len(self.p) != X.shape[1]:
                 raise ValueError( 'number of features must agree '
                                   'with number of length scales.'  )
-            # pairwise difference
-            D = X[:, newaxis, :] - X[newaxis, :, :]
+            k = X.shape[1]  # number of features
             def fun(log_params: ndarray) -> Tuple[ndarray, ndarray]:
                 assert is_array(log_params, 1, np.number)
                 # period
                 p = np.exp(log_params)
-                # pairwise perioded difference
-                d_K_d_logp = D * p[newaxis, newaxis, :]
-                # precompute
-                Dp = d_K_d_logp.sum(axis=2)
+                # map to u-space
+                X_p = np.einsum('ij,j->ij', X, 2 * pi / p)
+                # pairwise perioded difference squared (feature being 3rd axis)
+                D_p = X_p[:, newaxis, :] - X_p[newaxis, :, :]
+                cosDp = np.cos(D_p)
+                d_K_d_logp = np.sin(D_p) * D_p
                 # kernel
-                K = np.cos(Dp)
+                K = cosDp.prod(axis=2)
                 # jacobian
-                d_K_d_logp *= (-np.sin(Dp))[:, :, newaxis]
+                masks = np.ones((k, k), dtype=int)
+                masks[np.diag_indices_from(masks)] = 0
+                for kk in range(k):
+                    d_K_d_logp[:,:,kk] *= cosDp[:,:,masks[kk]].prod(axis=2)
                 return K, d_K_d_logp
         return fun
 
@@ -1125,10 +1130,173 @@ class CosineKernel(StationaryMixin, Kernel):
                 raise ValueError( 'number of features must agree '
                                   'with number of periods.'  )
             p = self.p
-        Rp = ((X[:, newaxis, :] - Z[newaxis, :, :]) * \
-               p[newaxis, newaxis, :]).sum(axis=2)
-        K = np.cos(Rp)
+        X_p = np.einsum('ij,j->ij', X, 2 * pi / p)
+        Z_p = np.einsum('ij,j->ij', Z, 2 * pi / p)
+        K = np.cos(X_p[:, newaxis, :] - Z_p[newaxis, :, :]).prod(axis=2)
         return K
+
+
+class SpectralKernel(StationaryMixin, Kernel):
+    """
+    spectral kernel (additive component of spectral mixture kernel)
+
+    k_q(x,z) = exp( - 1/2 * || (x-z)/l ||**2 ) * cos( 2π/p * (x-z) )
+
+    p (period): positive float (isotropic) or positive array (anisotropic)
+    l (length scale): positive float (isotropic) or positive array (anisotropic)
+
+    ..todo:: spectral = rbf * sin
+    """
+
+    def __init__(self, p: float = 1.0, l: float = 1.0,
+                 p_bounds: B = (1e-4, 1e+4), l_bounds: B = (1e-4, 1e+4)):
+        check_positive_scalar_array(p, 'period')
+        check_positive_scalar_array(l, 'length scale')
+        if not (type(p) == type(l) == float or
+                isinstance(p, ndarray) and isinstance(l, ndarray) and
+                len(p) == len(l)):
+            raise ValueError('periods and length scales must be of same size.')
+        self._thetas = Thetas.from_seq((p, l), (p_bounds, l_bounds), log)
+
+    def __repr__(self):
+        return self.__str__()
+
+    def __str__(self):
+        p = formatter(self.p)
+        l = formatter(self.l)
+        return 'SpectralKernel(p={}, l={})'.format(p, l)
+
+    @property
+    def thetas(self):
+        return self._thetas
+
+    @property
+    def hyperparameters(self):
+        return {'period': self.p, 'length scale': self.l}
+
+    @property
+    def isotropic(self):
+        if len(self.thetas) == 2:
+            return True
+        else:
+            return False
+
+    @property
+    def dim(self):
+        return len(self.thetas) // 2
+
+    @property
+    def p(self):
+        if self.isotropic:
+            return exp(self.thetas.values[0])
+        else:
+            return np.exp(self.thetas.values[:self.dim])
+
+    @property
+    def l(self):
+        if self.isotropic:
+            return exp(self.thetas.values[-1])
+        else:
+            return np.exp(self.thetas.values[-self.dim:])
+
+    def _set(self, log_params: ndarray):
+        self._thetas.set(log_params)
+
+    def _obj(self, X: ndarray) -> Callable:
+        raise NotImplementedError
+        if self.isotropic:
+            # pairwise l2 distance squared
+            R2 = dist(X, X, metric='sqeuclidean')
+            # pairwise difference summed
+            Ds = (X[:, newaxis, :] - X[newaxis, :, :]).sum(axis=2)
+            def fun(log_params: ndarray) -> Tuple[ndarray, ndarray]:
+                assert is_array(log_params, 1, np.number)
+                # period and length scale
+                p = exp(log_params[0])
+                l = exp(log_params[1])
+                # pairwise scaled l2 distance squared
+                R2_l2 = R2 / l**2
+                # precompute
+                Dp = Ds * p
+                rbf = np.exp(R2_l2 / -2.)
+                # kernel
+                K = rbf * np.cos(Dp)
+                # jacobian
+                d_K_d_logp = rbf * -np.sin(Dp) * Dp
+                d_K_d_logl = K * R2_l2
+                return K, np.dstack((d_K_d_logp, d_K_d_logl))
+        else:
+            if len(self.l) != X.shape[1]:
+                raise ValueError( 'number of features must agree '
+                                  'with number of length scales.'  )
+            dim = self.dim
+            # pairwise difference
+            D = X[:, newaxis, :] - X[newaxis, :, :]
+            def fun(log_params: ndarray) -> Tuple[ndarray, ndarray]:
+                assert is_array(log_params, 1, np.number)
+                # period and length scale
+                p = np.exp(log_params[:dim])
+                l = np.exp(log_params[-dim:])
+                # pairwise scaled difference squared (feature-indexed z axis)
+                d_K_d_logl = (D * l[newaxis, newaxis, :])**2
+                # pairwise scaled l2 distance squared (summing over feature)
+                R2_l2 = d_K_d_logl.sum(axis=2)
+                # pairwise perioded difference
+                d_K_d_logp = np.einsum('ijk,k->ijk', D, p)
+                # precompute
+                Dp = d_K_d_logp.sum(axis=2)
+                rbf = np.exp(R2_l2 / -2.)
+                # kernel
+                K = rbf * np.cos(Dp)
+                # jacobian
+                d_K_d_logp *= (rbf * -np.sin(Dp))[:, :, newaxis]
+                d_K_d_logl *= K[:, :, newaxis]
+                return K, np.dstack((d_K_d_logp, d_K_d_logl))
+        return fun
+
+    def __call__(self, X: ndarray, Z: ndarray) -> ndarray:
+        super().__call__(X, Z)
+        raise NotImplementedError
+        k = X.shape[1]  # number of features
+        if self.isotropic:
+            l = self.l * np.ones((k,))
+            p = self.p * np.ones((k,))
+        else:
+            if len(self.l) != k:
+                raise ValueError( 'number of features must agree '
+                                  'with number of length scales.'  )
+            if len(self.p) != k:
+                raise ValueError( 'number of features must agree '
+                                  'with number of length scales.'  )
+            l = self.l
+            p = self.p
+        X_l = np.einsum('ij,j->ij', X, 1./l)
+        Z_l = np.einsum('ij,j->ij', Z, 1./l)
+        R2_l2 = dist(X_l, Z_l, metric='sqeuclidean')
+        Dp = np.einsum('ijk,k->ij', X[:, newaxis, :] - Z[newaxis, :, :], p)
+        K = np.exp(R2_l2 / -2.) * np.cos(Dp)
+        return K
+
+
+class SpectralMixtureKernel(StationaryMixin, Kernel):
+    """
+    spectral mixture kernel
+
+    k_sm = Σ_q k_q
+
+    whose spectral density is a scale-location mixture of Gaussians,
+    qth spectral density Gaussian(1/p, 1/2πl) corresponds to a spectral kernel
+
+    k_q(x,z) = exp( - 1/2 * || (x-z)/l ||**2 ) * cos( 2π/p * (x-z) )
+    """
+    def __init__(self):
+        raise NotImplementedError
+
+    @classmethod
+    def from_empirical(self, X, y, n_mix: int):
+        """ gauge the spectral density of data and use it as initialization """
+        raise NotImplementedError
+        return SpectralMixtureKernel()
 
 
 class LinearKernel(NonStationaryMixin, Kernel):
@@ -1138,6 +1306,7 @@ class LinearKernel(NonStationaryMixin, Kernel):
     k(x,z) = (x/l).T @ (z/l)
 
     l (length scale): positive float (isotropic) or positive array (anisotropic)
+
     ..todo:: reparametrise to k(x,z) = ((x-c)/l).T @ ((z-c)/l)
     """
 
@@ -1145,14 +1314,7 @@ class LinearKernel(NonStationaryMixin, Kernel):
         super().__init__()
         check_positive_scalar_array(l, 'length scale')
         self._thetas = Thetas.from_seq((l,), (l_bounds,), log)
-        # refer to old commits and mimic spectral kernel's structure
-        # check_positive_scalar_array(p, 'period')
-        # check_positive_scalar_array(l, 'length scale')
-        # if not (type(p) == type(l) == float or
-        #         isinstance(p, ndarray) and isinstance(l, ndarray) and
-        #         len(p) == len(l)):
-        #     raise ValueError('periods and length scales must be of same size.')
-        # self._thetas = Thetas.from_seq((p, l), (p_bounds, l_bounds), log)
+        # mimic spectral kernel's structure
 
     def __repr__(self):
         return self.__str__()

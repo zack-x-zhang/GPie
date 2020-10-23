@@ -2,12 +2,15 @@
 
 from .kernels import ConstantKernel, WhiteKernel, RBFKernel, \
                      RationalQuadraticKernel, MaternKernel,  \
-                     PeriodicKernel, SpectralKernel,         \
+                     PeriodicKernel, CosineKernel,           \
+                     SpectralKernel, SpectralMixtureKernel,  \
                      LinearKernel, NeuralKernel
 from .gaussian_process import GaussianProcessRegressor, tProcessRegressor
 from .bayes_optimizer import BayesianOptimizer
 
 __all__ = ['ConstantKernel', 'WhiteKernel', 'RBFKernel',
-           'RationalQuadraticKernel', 'MaternKernel', 'PeriodicKernel',
-           'SpectralKernel', 'LinearKernel', 'NeuralKernel',
+           'RationalQuadraticKernel', 'MaternKernel',
+           'PeriodicKernel', 'CosineKernel',
+           'SpectralKernel', 'SpectralMixtureKernel',
+           'LinearKernel', 'NeuralKernel',
            'GaussianProcessRegressor', 'BayesianOptimizer']
