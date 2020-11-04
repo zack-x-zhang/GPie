@@ -169,7 +169,6 @@ class GaussianProcessRegressor(BayesianSupervisedModel):
             return
         else:
             return
-        # only support uninformative prior θ for now
 
     def hyper_posterior(self, n_samples: int = 0, **kwargs):
         super().hyper_posterior(n_samples)
@@ -183,10 +182,10 @@ class GaussianProcessRegressor(BayesianSupervisedModel):
                           Gaussian(np.zeros(k), np.eye(k)),
                           self.thetas.values, n_samples, **kwargs)
             return sampler.sample()
-        # only support uninformative prior θ for now
+        # only support flat hyperprior θ for now
 
     def fit(self, X: ndarray, y: ndarray, verbose: bool = False):
-        """ MLE, or MAP under slab prior """
+        """ empirical bayes || type II maximum likelihood """
         super().fit(X, y)
         self.optimizer.fun = self._obj(self.X, self.y)
         self.optimizer.jac = True
@@ -223,7 +222,7 @@ class GaussianProcessRegressor(BayesianSupervisedModel):
             return prior
         else:
             return prior.sample(n_samples)
-        # only support uninformative prior θ for now
+        # only support Dirac θ for now
 
     def posterior_predictive(self, X: ndarray, n_samples: int = 0) \
         -> Union[Gaussian, ndarray]:
@@ -232,16 +231,16 @@ class GaussianProcessRegressor(BayesianSupervisedModel):
         Kzz = self.kernel(X, X)
         mu = np.einsum('ij,j->i', Kzx, self.dual_weights)
         cov = Kzz - Kzx @ cho_solve((self.L, True), Kzx.T)
-        if np.any(cov < 0.):
-            warnings.warn('posterior covariance matrix has negative elements. '
-                          'possibly numerical issues. correcting to 0.')
-        cov[cov < 0.] = 0.
+        # if np.any(cov < 0.):
+        #     warnings.warn('posterior covariance matrix has negative elements. '
+        #                   'possibly numerical issues. correcting to 0.')
+        # cov[cov < 0.] = 0.
         posterior = Gaussian(mu, cov, allow_singular=True)
         if n_samples <= 0:
             return posterior
         else:
             return posterior.sample(n_samples)
-        # only support uninformative prior θ for now
+        # only support Dirac θ for now
 
 
 class tProcessRegressor(BayesianSupervisedModel):

@@ -28,7 +28,7 @@ class BayesianOptimizer(Optimizer):
 
     def __init__(self, fun: Callable, bounds: Bounds,
                  x0: ndarray, y0: Optional[ndarray] = None,
-                 n_evals: int = 100, timeout: int = 600,
+                 n_evals: int = 30, timeout: int = 600,
                  surrogate: Surrogate = GaussianProcessRegressor(),
                  acquisition: str = 'ei', solver='l-bfgs-b'):
 

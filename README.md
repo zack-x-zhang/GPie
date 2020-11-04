@@ -3,6 +3,7 @@
 [![Python](https://img.shields.io/pypi/pyversions/gpie)](https://www.python.org)
 [![PyPI](https://img.shields.io/pypi/v/gpie)](https://pypi.python.org/pypi/gpie)
 [![License](https://img.shields.io/github/license/zackxzhang/gpie)](https://opensource.org/licenses/BSD-3-Clause)
+[![Last Commit](https://img.shields.io/github/last-commit/zackxzhang/gpie)](https://github.com/zackxzhang/gpie)
 
 **G**aussian **P**rocess t**i**ny **e**xplorer
 
@@ -111,7 +112,7 @@ hyper_posterior = gpr.hyper_posterior(n_samples=10000)
 
 GPie makes extensive use of de facto standard scientific computing packages in Python:
 
-- numpy: linear algebra, stochastic sampling  
+- numpy: linear algebra, stochastic sampling
 - scipy: gradient-based optimization, stochastic sampling
 
 
