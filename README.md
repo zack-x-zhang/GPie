@@ -10,13 +10,12 @@
 - **simple**: an intuitive syntax inspired by scikit-learn
 - **powerful**: a compact core of expressive abstractions
 - **extensible**: a modular design for effortless composition
-- **lightweight**: minimal dependencies (standard library, numpy, scipy)
+- **lightweight**: a minimal set of dependencies {standard library, numpy, scipy}
 
 This is a ongoing research project with many parts currently **under construction** - please expect bugs and sharp edges.
 
 
 ### Features
-
 - several "avant-garde" kernels such as spectral kernel and neural kernel allow for exploration of new ideas
 - each kernel implements anisotropic variant besides isotropic one to support automatic relevance determination
 - a full-fledged toolkit of kernel operators enables all sorts of "kernel engineering", for example, handcrafting composite kernels based on expert knowledge or exploiting special structure of datasets
@@ -130,7 +129,7 @@ pip install --upgrade git+https://github.com/zackxzhang/gpie
 
 
 ### What's Next
-- an example of Bayesian optimization in comparison to gradient-based optimization (working)
+- an example of Bayesian optimization (working)
 - a brief guide on varying characteristics of different kernels and how to compose them (queued)
 - a demo of quantified Occam's razor encoded by Bayesian inference and its implication for model selection (queued)
 - implement Hamiltonian Monte Carlo and no-U-turn for more efficient sampling (researching)

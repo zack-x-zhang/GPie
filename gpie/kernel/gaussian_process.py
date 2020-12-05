@@ -232,8 +232,8 @@ class GaussianProcessRegressor(BayesianSupervisedModel):
         mu = np.einsum('ij,j->i', Kzx, self.dual_weights)
         cov = Kzz - Kzx @ cho_solve((self.L, True), Kzx.T)
         # if np.any(cov < 0.):
-        #     warnings.warn('posterior covariance matrix has negative elements. '
-        #                   'possibly numerical issues. correcting to 0.')
+        #     warnings.warn('posterior covariance has negative elements. '
+        #                   'possibly numerical issues - correcting to 0.')
         # cov[cov < 0.] = 0.
         posterior = Gaussian(mu, cov, allow_singular=True)
         if n_samples <= 0:
