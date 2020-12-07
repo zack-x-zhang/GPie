@@ -130,7 +130,7 @@ class GaussianProcessRegressor(BayesianSupervisedModel):
             mu, sigma = p.mu.item(), sqrt(p.cov.item())
             y_min = self.y.min()
             return (y_min - mu) * norm.cdf(y_min, mu, sigma) + \
-                   sigma**2 * norm.pdf(y_min, mu, sigma)
+                   sigma * norm.pdf(y_min, mu, sigma)
         # lower confidence bound
         def fun_lcb(x: ndarray, beta: float = 1.) -> float:
             assert is_array(x, 1, np.number)

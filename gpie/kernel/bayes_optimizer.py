@@ -127,7 +127,7 @@ class BayesianOptimizer(Optimizer):
         # b) and from uniformly random states (exploration)
         self.optimizer.X0 = self.X
         # acquisition drawn with ampler information deserves more restarts
-        self.optimizer.n_restarts = min(self.X.shape[0], 10**(self.X.shape[1]))
+        self.optimizer.n_restarts = min(10, max(self.X.shape[0], self.X.shape[1]**2))
         # choose next query to be the minimizer of acquisition
         success = False
         try:
@@ -156,16 +156,21 @@ class BayesianOptimizer(Optimizer):
         # update surrogate
         self.surrogate.fit(self.X, self.y)
 
-    def minimize(self, verbose: bool = False) -> Tuple[float, ndarray]:
+    def minimize(self, callback: Optional[Callable] = None,
+                 verbose: bool = False) -> dict:
         genesis = time()
 
         self._fit()
+        if callback:
+            callback(self)
         while len(self.y) < self.n_evals:
             if time() - genesis > self.timeout:
                 break
             self._update()
+            if callback:
+                callback(self)
 
         if verbose:
-            return self.y, self.X
+            return {'f': self.y, 'x': self.X}
         else:
-            return self.y.min(), self.X[self.y.argmin()]
+            return {'f': self.y.min(), 'x': self.X[self.y.argmin()]}
